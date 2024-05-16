@@ -1,5 +1,6 @@
 use reqwest;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::io::{self, Write};
 use tokio::time::{sleep, Duration};
 use thiserror::Error;
@@ -50,22 +51,45 @@ fn prompt_for_f64(prompt: &str) -> f64 {
     }
 }
 
+fn get_valid_ticker() -> String {
+    let valid_tickers: HashMap<&str, &str> = [
+        ("btc", "bitcoin"),
+        ("bitcoin", "bitcoin"),
+        ("eth", "ethereum"),
+        ("ethereum", "ethereum"),
+        ("ada", "cardano"),
+        ("cardano", "cardano"),
+    ]
+        .iter()
+        .cloned()
+        .collect();
+
+    loop {
+        let ticker = prompt_user("Enter the cryptocurrency ticker (e.g., btc, eth, ada): ").to_lowercase();
+        if let Some(valid_ticker) = valid_tickers.get(ticker.as_str()) {
+            return valid_ticker.to_string();
+        } else {
+            println!("Invalid ticker. Please enter one of the following: btc, eth, ada.");
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let ticker = prompt_user("Enter the cryptocurrency ticker (e.g., bitcoin, ethereum, cardano): ");
+    let ticker = get_valid_ticker();
     let alert_type = prompt_user("Do you want to set an alert based on (1) $ change or (2) % change? Enter 1 or 2: ");
     let threshold = prompt_for_f64("Enter the threshold value: ");
-    let interval = prompt_for_f64("Enter the query interval in seconds: ") as u64;
 
     let initial_price = fetch_prices(&ticker).await?.usd;
 
-    println!("Monitoring {} price. Initial price: ${}", ticker, initial_price);
+    println!("Monitoring {} price. Initial price: ${:.2}", ticker, initial_price);
 
     loop {
-        sleep(Duration::from_secs(interval)).await;
+        sleep(Duration::from_secs(30)).await;
 
         match fetch_prices(&ticker).await {
             Ok(current_price) => {
+                println!("Current {} price: ${:.2}", ticker, current_price.usd);
                 let price_change = current_price.usd - initial_price;
                 let percent_change = (price_change / initial_price) * 100.0;
 
